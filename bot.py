@@ -917,15 +917,15 @@ def main():
     """Start the bot."""
     load_languages()
 
-    if not BOT_TOKEN or BOT_TOKEN == "YOUR_BOT_TOKEN_HERE":
+    token = os.environ.get("BOT_TOKEN") or os.getenv("BOT_TOKEN")
+    if not token or token == "YOUR_BOT_TOKEN_HERE":
         print("=" * 50)
         print("❌ ERROR: Bot token not set!")
-        print("Please set your bot token in the .env file:")
-        print("BOT_TOKEN=your_token_here")
+        print("Set BOT_TOKEN as environment variable or in .env file")
         print("=" * 50)
         return
 
-    app = Application.builder().token(BOT_TOKEN).build()
+    app = Application.builder().token(token).build()
 
     # Conversation handlers
     search_conv = ConversationHandler(
