@@ -110,6 +110,25 @@ search_history = {}
 # Favorites: {user_id: ["username1", "username2", ...]}
 favorites = {}
 
+# Username tracker: {tiktok_user_id: [{"username": ..., "date": ...}, ...]}
+username_tracker = {}
+
+
+def track_username(tiktok_uid: str, username: str) -> list:
+    """Track username changes. Returns list of previous usernames if changed."""
+    if not tiktok_uid or tiktok_uid == "N/A":
+        return []
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M")
+    if tiktok_uid not in username_tracker:
+        username_tracker[tiktok_uid] = [{"username": username, "date": now}]
+        return []
+    history = username_tracker[tiktok_uid]
+    current = history[-1]["username"]
+    if current != username:
+        history.append({"username": username, "date": now})
+        return history[:-1]
+    return history[:-1] if len(history) > 1 else []
+
 
 def save_to_history(user_id: int, username: str):
     """Save a search to user's history."""
@@ -153,6 +172,18 @@ def build_user_response(data: dict, user_id: int) -> str:
         safe_label = escape_markdown(label, version=2)
         safe_value = escape_markdown(str(value), version=2)
         response += f"*{safe_label}:* {safe_value}\n"
+
+    # Track username and show history
+    tiktok_uid = str(data.get("user_id", ""))
+    prev = track_username(tiktok_uid, data["username"])
+    if prev:
+        history_label = t(user_id, "prev_usernames")
+        safe_hl = escape_markdown(history_label, version=2)
+        response += f"\n*{safe_hl}:*\n"
+        for entry in prev:
+            safe_u = escape_markdown(f"@{entry['username']}", version=2)
+            safe_d = escape_markdown(entry['date'], version=2)
+            response += f"  ↩️ {safe_u} \({safe_d}\)\n"
 
     return response
 

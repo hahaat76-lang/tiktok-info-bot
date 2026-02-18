@@ -47,5 +47,6 @@
     "fav_title": "⭐ *Favorites ({count}):*\n\n",
     "history_empty": "📭 Search history is empty.",
     "history_title": "📜 *Recent Searches:*\n\n",
-    "vs": "vs"
+    "vs": "vs",
+    "prev_usernames": "📛 Previous Usernames"
 }
