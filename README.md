@@ -1,3 +1,13 @@
+---
+title: TikTok Info Bot
+emoji: 🎵
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # 🎵 TikTok Info Bot - بوت معلومات تيك توك
 
 بوت تيليقرام لجلب معلومات حسابات تيك توك وتحميل الفيديوهات بدون علامة مائية.
