@@ -967,7 +967,7 @@ def main():
     app.add_error_handler(error_handler)
 
     # Health check server for Render
-    PORT = int(os.environ.get("PORT", 10000))
+    PORT = int(os.environ.get("PORT", 7860))
 
     class HealthHandler(BaseHTTPRequestHandler):
         def do_GET(self):
