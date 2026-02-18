@@ -1,7 +1,14 @@
 import httpx
 import json
 import re
+import asyncio
 from datetime import datetime, timezone
+
+try:
+    import yt_dlp
+    HAS_YTDLP = True
+except ImportError:
+    HAS_YTDLP = False
 
 
 class TikTokScraper:
@@ -105,34 +112,28 @@ class TikTokScraper:
         return {"error": True}
 
     async def get_video_no_watermark(self, url: str) -> dict:
-        """Download TikTok video without watermark."""
+        """Download TikTok video without watermark using multiple methods."""
         url = url.strip()
 
-        # Try tikwm API
-        try:
-            api_headers = {**self.headers, "Accept": "application/json"}
-            async with httpx.AsyncClient(timeout=30, headers=api_headers, follow_redirects=True) as client:
-                response = await client.post(
-                    f"{self.TIKWM_API}/",
-                    data={"url": url, "hd": 1},
-                )
-                data = response.json()
+        # Handle short URLs (vm.tiktok.com, vt.tiktok.com)
+        if "vm.tiktok.com" in url or "vt.tiktok.com" in url:
+            try:
+                async with httpx.AsyncClient(timeout=10, headers=self.headers, follow_redirects=True) as client:
+                    response = await client.head(url)
+                    url = str(response.url)
+            except Exception:
+                pass
 
-                if data.get("code") == 0 and data.get("data"):
-                    video_data = data["data"]
-                    return {
-                        "error": False,
-                        "video_url": video_data.get("hdplay") or video_data.get("play"),
-                        "music_url": video_data.get("music"),
-                        "title": video_data.get("title", ""),
-                        "author": video_data.get("author", {}).get("unique_id", ""),
-                        "duration": video_data.get("duration", 0),
-                        "cover": video_data.get("cover"),
-                    }
-        except Exception:
-            pass
+        # Method 1: yt-dlp (most reliable)
+        if HAS_YTDLP:
+            try:
+                result = await self._ytdlp_download(url)
+                if result and not result.get("error"):
+                    return result
+            except Exception:
+                pass
 
-        # Fallback: try to extract video from the page directly
+        # Method 2: Direct page scraping
         try:
             async with httpx.AsyncClient(timeout=20, headers=self.headers, follow_redirects=True) as client:
                 response = await client.get(url)
@@ -164,7 +165,69 @@ class TikTokScraper:
         except Exception:
             pass
 
+        # Method 3: tikwm API (fallback)
+        try:
+            api_headers = {**self.headers, "Accept": "application/json"}
+            async with httpx.AsyncClient(timeout=15, headers=api_headers, follow_redirects=True) as client:
+                response = await client.post(
+                    f"{self.TIKWM_API}/",
+                    data={"url": url, "hd": 1},
+                )
+                data = response.json()
+
+                if data.get("code") == 0 and data.get("data"):
+                    video_data = data["data"]
+                    return {
+                        "error": False,
+                        "video_url": video_data.get("hdplay") or video_data.get("play"),
+                        "music_url": video_data.get("music"),
+                        "title": video_data.get("title", ""),
+                        "author": video_data.get("author", {}).get("unique_id", ""),
+                        "duration": video_data.get("duration", 0),
+                        "cover": video_data.get("cover"),
+                    }
+        except Exception:
+            pass
+
         return {"error": True}
+
+    async def _ytdlp_download(self, url: str) -> dict | None:
+        """Use yt-dlp to extract video info."""
+        ydl_opts = {
+            "quiet": True,
+            "no_warnings": True,
+            "skip_download": True,
+            "format": "best",
+            "noplaylist": True,
+        }
+
+        def _extract():
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                return ydl.extract_info(url, download=False)
+
+        try:
+            loop = asyncio.get_event_loop()
+            info = await loop.run_in_executor(None, _extract)
+            if info:
+                video_url = info.get("url")
+                if not video_url and info.get("formats"):
+                    for fmt in reversed(info["formats"]):
+                        if fmt.get("url"):
+                            video_url = fmt["url"]
+                            break
+                if video_url:
+                    return {
+                        "error": False,
+                        "video_url": video_url,
+                        "music_url": None,
+                        "title": info.get("title", ""),
+                        "author": info.get("uploader", ""),
+                        "duration": info.get("duration", 0),
+                        "cover": info.get("thumbnail"),
+                    }
+        except Exception:
+            pass
+        return None
 
     def _format_user(self, user: dict, stats: dict) -> dict:
         """Format raw TikTok API data into a clean dict."""
